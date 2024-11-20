@@ -1,0 +1,287 @@
+`timescale 1ns/1ns
+
+module mux3_to_1 #(parameter num_bit)(input clk,input [num_bit-1:0]data1,data2,data3, input [1:0]sel,output [num_bit-1:0]out);
+	
+	assign out=~sel[1] ? (sel[0] ? data2 : data1 ) : data3;	
+endmodule
+module mux4_to_1 #(parameter num_bit)(input clk,input [num_bit-1:0]data0,data1,data2,data3, input [1:0]sel,output [num_bit-1:0]out);
+	
+	assign out=~sel[1] ? (sel[0] ? data1 : data0 ) : (~sel[0] ? data2 : data3 );	
+endmodule
+
+module mux2_to_1 #(parameter num_bit)(input clk,input [num_bit-1:0]data1,data2, input sel,output [num_bit-1:0]out);
+	
+	assign out=~sel?data1:data2;
+endmodule
+
+module sign_extension(input clk,input [15:0]primary, output [31:0] extended);
+
+	assign extended=$signed(primary);
+endmodule
+
+module shl2 #(parameter num_bit)(input clk,input [num_bit-1:0]adr, output [num_bit-1:0]sh_adr);
+
+	assign sh_adr=adr<<2;
+endmodule
+
+module alu(input clk,input [31:0]data1,data2, input [3:0]alu_op, output reg[31:0]alu_result, output zero_flag);
+	reg [31:0] extended;
+	always@(alu_op,data1,data2) begin
+		alu_result=32'b0;
+		case (alu_op)
+			4'b0000:	alu_result=data1 + data2;
+			4'b0001:	alu_result=data1 - data2;
+			4'b0011: alu_result=data1 & data2;
+			4'b0100:	alu_result=data1 | data2;
+			//4'b0010:	alu_result=data1 + data2;
+			//4'b0011:	alu_result=data1 - data2;
+			4'b0101: alu_result=(data1<data2) ? 32'b1:32'b0;
+			4'b0111: alu_result=data1 ^ data2; // Estesna****************
+			4'b0110: alu_result=~(data1|data2); // Estesna**********************
+			4'b1000:alu_result = data2 << 2;
+			4'b1001: alu_result = data1 >> data2;
+			4'b1010: alu_result = data1 >>> data2;
+			//f
+			4'b1100: alu_result = data1 << data2;
+			4'b1101: alu_result = data1 >> data2;
+			4'b1110: alu_result = data1 >>> data2;
+			4'b1111: alu_result = data2;
+		endcase
+	end
+	assign zero_flag=(alu_result==32'b0) ? 1'b1:1'b0;
+endmodule
+
+module adder(input clk,input [31:0] data1,data2, output [31:0]sum);
+	
+	wire co;
+	assign {co,sum}=data1+data2;
+endmodule
+
+
+module reg_file(input clk,rst,RegWrite,input [4:0] read_reg1,read_reg2,write_reg,input [31:0]write_data,
+		output [31:0]read_data1,read_data2);
+
+	reg [31:0] register[0:31];
+	integer i;
+	always@(posedge clk,rst) begin
+		if(rst) begin
+			for(i=0;i<32;i=i+1) register[i]<=32'b0;
+		end
+		else begin
+			if(RegWrite) register[write_reg]<=write_data;
+		end
+	end
+	assign read_data1=register[read_reg1];
+	assign read_data2=register[read_reg2];
+endmodule
+
+module inst_memory(input clk,rst,input [31:0]adr,output [31:0]instruction);
+
+	reg [31:0]mem_inst[0:255];
+	initial begin
+		$readmemb("D:/Daneshgah/Master/Term 4031/Computer Arch/Slides/mips_single_cycle/Edit1/instructionmemory.txt",mem_inst);
+  	end
+	assign instruction=mem_inst[adr>>2];
+endmodule
+
+module data_memory(input clk,rst,mem_read,mem_write,input [31:0]adr,write_data,output reg[31:0]read_data,
+		   output [31:0] out1,out2);
+
+	reg [31:0]mem_data[0:511];
+	integer i,f;
+
+	initial begin
+		$readmemb("D:/Daneshgah/Master/Term 4031/Computer Arch/Slides/mips_single_cycle/Edit1/datamemory.txt",mem_data);
+  	end
+
+	always@(posedge clk) begin
+		if(mem_write) mem_data[adr>>2]<=write_data;
+	end
+
+	always@(mem_read,adr) begin
+		if(mem_read) read_data<=mem_data[adr>>2];
+		else read_data<=32'b0;	
+	end
+	
+	initial begin
+		$writememb("D:/Daneshgah/Master/Term 4031/Computer Arch/Slides/mips_single_cycle/Edit1/datamemory.txt",mem_data); 
+  	end
+
+	initial begin
+  		f = $fopen("datamemory.txt","w");
+		for(i=0;i<512;i=i+1) begin
+		$fwrite(f,"%b\n",mem_data[i]);
+		end
+		$fclose(f);  
+	end
+
+	assign out1=mem_data[500];
+	assign out2=mem_data[501];
+	
+endmodule
+
+module pc(input clk,rst,input [31:0]in,output reg[31:0]out);
+
+	always @(posedge clk,rst) begin
+		if(rst) out<=32'b0;
+		else out<=in;
+	end
+endmodule
+
+module Fetch_latch(input clk ,rst, enable , input [31:0] in_pc , output reg [31:0] out_pc_IF);
+
+	always@(posedge clk,rst)
+	begin
+		//if(enable)
+		//begin
+			if(rst) out_pc_IF <= 32'b0;
+			else out_pc_IF <= in_pc;
+		//end
+
+	end
+endmodule
+
+module Fetch_Decode_latch(input clk ,rst,enable,input [31:0] instruction_IF , pc_adder_IF , output[31:0] reg instruction_ID,pc_adder_ID);
+
+
+	always @(posedge clk,rst)
+	begin
+		//if (enable) begin
+			if(rst) begin
+				instruction_ID <= 32'b0;
+				pc_adder_ID <= 32'b0;
+			end
+			else begin
+				instruction_ID <= instruction_IF;
+				pc_adder_ID <= pc_adder_IF;
+			end
+		//end
+	end
+
+endmodule
+
+module Decode_Exe_latch
+(input clk ,rst,enable,
+input Branch_ID,Regwrite_ID,DataC_ID,MemtoReg_ID,MemWrite_ID,MemRead_ID,AluOperation_ID,AluSrc1_ID,AluSrc_ID,
+input [31:0] read_data1_reg_ID,read_data2_reg_ID , inst_extended_ID , pc_adder_ID ,
+input [4:0] write_reg_ID , Shamnt_ID , 
+output reg Branch_EXE,Regwrite_EXE,DataC_EXE , MemtoReg_EXE , MemWrite_EXE ,MemRead_EXE ,AluOperation_EXE,AluSrc1_EXE,AluSrc_EXE,
+output reg [31:0] read_data1_reg_EXE,read_data2_reg_EXE, inst_extended_EXE , pc_adder_EXE ,
+output reg [4:0] write_reg_EXE , Shamnt_EXE);
+
+	always @(posedge clk,rst)
+	begin
+		//if (enable) begin
+			if(rst) begin
+				Branch_EXE = 1'b0;
+				Regwrite_EXE = 1'b0;
+				DataC_EXE = 1'b0;
+				MemtoReg_EXE = 1'b0;
+				MemWrite_EXE = 1'b0;
+				MemRead_EXE = 1'b0;
+				AluOperation_EXE = 1'b0;
+				AluSrc1_EXE = 1'b0;
+				AluSrc_EXE = 1'b0;
+				read_data1_reg_EXE = 32'b0;
+				read_data2_reg_EXE = 32'b0;
+				inst_extended_EXE = 32'b0;
+				pc_adder_EXE = 32'b0;
+				write_reg_EXE = 5'b0; 
+				Shamnt_EXE = 5'b0;
+			end
+			else begin
+				Branch_EXE			<= Branch_ID;
+				Regwrite_EXE 		<= Regwrite_ID;
+				DataC_EXE 			<= DataC_ID;
+				MemtoReg_EXE 		<= MemtoReg_ID;
+				MemWrite_EXE 		<= MemWrite_ID;
+				MemRead_EXE 		<= MemRead_ID;
+				AluOperation_EXE 	<= AluOperation_ID;
+				AluSrc1_EXE 		<= AluSrc1_ID;
+				AluSrc_EXE 			<= AluSrc_ID;
+				read_data1_reg_EXE 	<= read_data1_reg_ID;
+				read_data2_reg_EXE 	<= read_data2_reg_ID;
+				inst_extended_EXE 	<= inst_extended_ID;
+				pc_adder_EXE 		<= pc_adder_ID;
+				write_reg_EXE 		<= write_reg_ID; 
+				Shamnt_EXE 			<= Shamnt_ID;
+			end
+		//end
+	end
+
+endmodule
+module Exe_Mem_latch
+(input clk ,rst,enable,
+input Regwrite_EXE,DataC_EXE,MemtoReg_EXE,MemWrite_EXE,MemRead_EXE,
+input [31:0] alu_result_EXE,read_data2_reg_EXE , pc_adder_EXE ,
+input [4:0] write_reg_EXE, 
+output reg Regwrite_MEM,DataC_MEM,MemtoReg_MEM,MemWrite_MEM,MemRead_MEM,
+output reg [31:0] alu_result_MEM,read_data2_reg_MEM , pc_adder_MEM ,
+output reg [4:0] write_reg_MEM);
+
+	always @(posedge clk,rst)
+	begin
+		//if (enable) begin
+			if(rst) begin
+				Regwrite_MEM = 1'b0;
+				DataC_MEM = 1'b0;
+				MemtoReg_MEM = 1'b0;
+				MemWrite_MEM = 1'b0;
+				MemRead_MEM = 1'b0;
+				alu_result_MEM = 32'b0;
+				read_data2_reg_MEM = 32'b0;
+				pc_adder_MEM = 32'b0;
+				write_reg_MEM = 5'b0; 
+			end
+			else begin
+				Regwrite_MEM		<= 	Regwrite_EXE;
+				DataC_MEM 			<= 	DataC_EXE;
+				MemtoReg_MEM		<= 	MemtoReg_EXE;
+				MemWrite_MEM 		<= 	MemWrite_EXE;
+				MemRead_MEM 		<= 	MemRead_EXE;
+				alu_result_MEM 		<= 	alu_result_EXE;
+				read_data2_reg_MEM 	<=	read_data2_reg_EXE;
+				pc_adder_MEM 		<= 	pc_adder_EXE;
+				write_reg_MEM 		<= 	write_reg_EXE; 
+			end
+		//end
+	end
+
+endmodule
+
+
+module Mem_WB_latch
+(input clk ,rst,enable,
+input Regwrite_MEM,DataC_MEM,MemtoReg_MEM,
+input [31:0] alu_result_MEM,read_data_mem_MEM, pc_adder_MEM ,
+input [4:0] write_reg_MEM, 
+output reg Regwrite_WB,DataC_WB,MemtoReg_WB,
+output reg [31:0] alu_result_WB,read_data_mem_WB ,pc_adder_WB ,
+output reg [4:0] write_reg_WB);
+
+	always @(posedge clk,rst)
+	begin
+		//if (enable) begin
+			if(rst) begin
+				Regwrite_WB = 1'b0;
+				DataC_WB = 1'b0;
+				MemtoReg_WB = 1'b0;
+				alu_result_WB = 32'b0;
+				read_data_mem_WB = 32'b0;
+				pc_adder_WB = 32'b0;
+				write_reg_WB = 5'b0; 
+			end
+			else begin
+
+				Regwrite_WB			<= 	Regwrite_MEM;
+				DataC_WB 			<= 	DataC_MEM;
+				MemtoReg_WB		<= 	MemtoReg_MEM;
+				alu_result_WB 		<= 	alu_result_MEM;
+				read_data_mem_WB 		<= 	read_data_mem_MEM;
+				pc_adder_WB 		<= 	pc_adder_MEM;
+				write_reg_WB 	<=	write_reg_MEM;
+			end
+		//end
+	end
+
+endmodule
