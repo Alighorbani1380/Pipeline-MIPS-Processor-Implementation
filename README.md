@@ -1,0 +1,2 @@
+# Advanced-Computer-Architecture---Pipeline-MIPS-Processor-Implementation
+Contains the Verilog implementation of a pipelined MIPS processor designed as part of the **Advanced Computer Architecture** course at the University of Tehran. The project focuses on implementing a pipeline architecture, addressing data and control hazards, and testing the design with a program to find the largest element in an array.
