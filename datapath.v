@@ -54,7 +54,7 @@ module data_path(
 	//
 
 	mux2_to_1 #32 Mux_stall(.clk(clk),.data1(instruction_ID),.data2(32'b0),.sel(enable_stall),.out(instruction_stall));
-	C_re C_re_ID(.instruction(instruction_ID[5:0]),.re1(re1_ID),.re2(re2_ID));
+	C_re C_re_ID(.instruction(instruction_ID[31:26]),.re1(re1_ID),.re2(re2_ID));
 	C_dest_E C_dest_EXE(.instruction(instruction_EXE_S),.ws(ws_EXE),.we_Bypass(we_Bypass),.we_stall(we_Stall),.we(we_EXE));
 	C_dest C_dest_MEM(.instruction(instruction_MEM_S),.ws(ws_MEM),.we(we_MEM));
 	C_dest C_dest_WB(.instruction(instruction_WB_S),.ws(ws_WB),.we(we_WB));
